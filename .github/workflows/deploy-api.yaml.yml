@@ -10,9 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️ Checkout do código
       - name: Checkout do código
         uses: actions/checkout@v3
 
+      # 2️ Configurar credenciais AWS
       - name: Configurar credenciais AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -20,7 +22,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: sa-east-1
 
-      # 1️ Obter nome do bucket de artefatos
+      # 3️ Obter nome do bucket de artefatos
       - name: Obter nome do bucket de artefatos
         id: bucket
         run: |
@@ -31,18 +33,21 @@ jobs:
             --region sa-east-1)
           echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
-      # 2️ Empacotar código da Lambda
+      # 4️ Empacotar código da Lambda
       - name: Empacotar código da Lambda
         run: |
           zip -r codigo-lambda.zip .
 
-      # 3️ Enviar ZIP para bucket de artefatos
+      # 5️ Enviar ZIP para bucket de artefatos
       - name: Enviar ZIP para bucket de artefatos
         run: |
           echo "Usando bucket de artefatos: $BUCKET_NAME"
+          # Cria a pasta lambda no bucket se não existir
+          aws s3api put-object --bucket $BUCKET_NAME --key lambda/
+          # Envia o ZIP da Lambda
           aws s3 cp codigo-lambda.zip s3://$BUCKET_NAME/lambda/upload.zip
 
-      # 4️ Deploy da stack principal
+      # 6️ Deploy da stack principal (API + Lambda + DynamoDB + API Gateway)
       - name: Deploy CloudFormation principal
         run: |
           aws cloudformation deploy \
