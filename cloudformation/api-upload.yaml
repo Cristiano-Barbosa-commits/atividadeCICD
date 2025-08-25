@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: API de Upload - S3 + DynamoDB + Lambda + API Gateway
+
+Resources:
+  ## Bucket S3 para armazenar os arquivos
+  UploadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: cristiano-sandbox1
+      AccessControl: Private
+
+  ## Tabela DynamoDB para metadados
+  UploadTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: UploadMetadados
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: fileId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: fileId
+          KeyType: HASH
+
+  ## Role para Lambda com permissões no S3 e DynamoDB
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: UploadLambdaRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: UploadLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub arn:aws:s3:::${UploadBucket}/*
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                Resource: !GetAtt UploadTable.Arn
+
+  ## Função Lambda para upload
+  UploadLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: UploadHandler
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: cristiano-sandbox1   # bucket onde você fará upload do código .zip da Lambda
+        S3Key: lambda/upload.zip       # chave do arquivo zipado
+
+  ## API Gateway
+  UploadApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: UploadApi
+      Description: API para upload de arquivos no S3 com metadados no DynamoDB
+
+  UploadApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref UploadApi
+      ParentId: !GetAtt UploadApi.RootResourceId
+      PathPart: upload
+
+  UploadApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref UploadApi
+      ResourceId: !Ref UploadApiResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UploadLambda.Arn}/invocations
+
+  ## Permissão para API Gateway chamar a Lambda
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UploadLambda
+      Principal: apigateway.amazonaws.com
+
+Outputs:
+  ApiUrl:
+    Description: URL da API para fazer upload
+    Value: !Sub https://${UploadApi}.execute-api.${AWS::Region}.amazonaws.com/prod/upload
