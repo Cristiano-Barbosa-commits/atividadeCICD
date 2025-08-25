@@ -21,15 +21,15 @@ jobs:
           aws-region: sa-east-1
 
       # 1️ Obter nome do bucket de artefatos
-      -  name: Obter nome do bucket de artefatos
-         id: bucket
-          run: |
-           BUCKET_NAME=$(aws cloudformation describe-stacks \
-           --stack-name artifact-bucket-stack \
-           --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" \
-           --output text \
-           --region sa-east-1)
-           echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
+      - name: Obter nome do bucket de artefatos
+        id: bucket
+        run: |
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name artifact-bucket-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" \
+            --output text \
+            --region sa-east-1)
+          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
       # 2️ Empacotar código da Lambda
       - name: Empacotar código da Lambda
