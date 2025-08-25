@@ -6,7 +6,7 @@ Resources:
   UploadBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: cristiano-sandbox1
+      BucketName: cristiano-sandbox1-001
       AccessControl: Private
 
   # Bucket para armazenar código Lambda

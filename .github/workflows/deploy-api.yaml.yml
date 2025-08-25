@@ -10,11 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️ Checkout do código
+      # 1️⃣ Checkout do código
       - name: Checkout do código
         uses: actions/checkout@v3
 
-      # 2️ Configurar credenciais AWS
+      # 2️⃣ Configurar credenciais AWS
       - name: Configurar credenciais AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -22,7 +22,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: sa-east-1
 
-      # 3️ Obter nome do bucket de artefatos
+      # 3️⃣ Obter nome do bucket de artefatos
       - name: Obter nome do bucket de artefatos
         id: bucket
         run: |
@@ -33,24 +33,37 @@ jobs:
             --region sa-east-1)
           echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
-      # 4️ Empacotar código da Lambda
+      # 4️⃣ Empacotar código da Lambda
       - name: Empacotar código da Lambda
         run: |
           zip -r codigo-lambda.zip .
 
-      # 5️ Enviar ZIP para bucket de artefatos
+      # 5️⃣ Enviar ZIP para bucket de artefatos
       - name: Enviar ZIP para bucket de artefatos
         run: |
           echo "Usando bucket de artefatos: $BUCKET_NAME"
-          # Cria a pasta lambda no bucket se não existir
           aws s3api put-object --bucket $BUCKET_NAME --key lambda/
-          # Envia o ZIP da Lambda
           aws s3 cp codigo-lambda.zip s3://$BUCKET_NAME/lambda/upload.zip
 
-      # 6️ Deploy da stack principal (API + Lambda + DynamoDB + API Gateway)
+      # 6️⃣ Verificar se a stack principal está em ROLLBACK_COMPLETE e deletar
+      - name: Deletar stack em ROLLBACK_COMPLETE
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name api-upload-stack \
+            --query "Stacks[0].StackStatus" \
+            --output text --region sa-east-1 2>/dev/null || echo "NOT_FOUND")
+          if [ "$STATUS" == "ROLLBACK_COMPLETE" ]; then
+            echo "Stack em ROLLBACK_COMPLETE, deletando..."
+            aws cloudformation delete-stack --stack-name api-upload-stack --region sa-east-1
+            # Espera a stack ser completamente deletada
+            aws cloudformation wait stack-delete-complete --stack-name api-upload-stack --region sa-east-1
+          fi
+
+      # 7️⃣ Deploy da stack principal
       - name: Deploy CloudFormation principal
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/api-upload.yaml \
             --stack-name api-upload-stack \
-            --capabilities CAPABILITY_NAMED_IAM
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region sa-east-1
