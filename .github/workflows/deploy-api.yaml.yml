@@ -18,14 +18,22 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: sa-east-1   
+          aws-region: sa-east-1
 
-          - name: Empacotar código da Lambda e enviar para o S3
-        run: 
-          
-          zip -r ../codigo-lambda.zip .
-          
-          aws s3 cp ../codigo-lambda.zip s3://SEU-BUCKET-DE-ARTIFACTS/codigo-lambda.zip
+      - name: Empacotar código da Lambda
+        run: |
+          zip -r codigo-lambda.zip .
+
+      - name: Enviar ZIP para bucket de artefatos
+        run: |
+          # Obtém o nome do bucket de artefatos criado pelo CloudFormation
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name api-upload-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" \
+            --output text)
+
+          echo "Usando bucket de artefatos: $BUCKET_NAME"
+          aws s3 cp codigo-lambda.zip s3://$BUCKET_NAME/lambda/upload.zip
 
       - name: Deploy CloudFormation
         run: |
